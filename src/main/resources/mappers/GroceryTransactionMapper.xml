@@ -1,0 +1,512 @@
+<?xml version = "1.0" encoding = "UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.grocery.on.wheels.dao.GroceryTransactionMapper">
+<insert id="createInvoice" parameterType="com.grocery.on.wheels.model.Invoice">
+	INSERT INTO inventory_invoice (invoice_id, invoice_name, invoice_date)
+	 VALUES (#{invoiceId}, #{invoiceName},now());
+</insert>
+
+<insert id="saveInventoryTransactionInfo" parameterType="com.grocery.on.wheels.model.InventoryPurchaseTransaction">
+	INSERT INTO inventory_transaction (
+	invoice_id, inventory_id, item_id, mrp, item_exp_dt, cp, sp, supplier_id, quantity, discount, other_charges, transaction_type, transaction_status, transaction_date, item_price_id, sale_pending, purchase_pending, item_exp_id, trans_mode, customer_mob, latitude, longitude)
+	 VALUES 
+	 <foreach collection="purchaseTransItem" item="item" index="index" open="(" separator="),("  close=")">
+		#{invoiceId},
+		#{inventoryId},
+		#{item.itemId},
+		#{item.mrp},
+		#{item.expDate},
+		#{item.cp},
+		#{item.sp},
+		#{supplierId},
+		#{item.itemCount},
+		#{discount},
+		#{otherCharges},
+		#{transactionType},
+		#{transactionStatus},
+		now(),
+		#{item.itemPriceId},
+		#{item.salePending},
+		#{item.purchasePending},
+		#{item.itemExpId},
+		#{transactionMode},
+		#{customerMob},
+		#{latitude},
+		#{longitude}
+    </foreach>
+</insert>
+
+<update id="updateInventoryStockPurchase" parameterType="com.grocery.on.wheels.model.InventoryPurchaseTransaction">
+	<foreach collection="purchaseTransItem" item="item" separator=";">
+		update inventory_item_map
+		set purchase_pending = purchase_pending + #{item.itemCount}
+		where inventory_id = #{inventoryId}
+		and item_price_id = #{item.itemPriceId}
+		and item_exp_id = #{item.itemExpId}
+	 </foreach>;
+</update>
+
+<insert id="saveVanTransactionInfo" parameterType="com.grocery.on.wheels.model.VanPurchaseTransaction">
+	INSERT INTO van_transaction (
+	invoice_id, van_id, item_id, item_mrp, item_exp_date, cp, sp, customer_id, quantity, discount, other_charges, transaction_type, transaction_status, transaction_date, item_price_id, sale_pending, purchase_pending, item_exp_id, trans_mode, latitude, longitude, trans_req)
+	VALUES 
+	 <foreach collection="purchaseTransItem" item="item" index="index" open="(" separator="),("  close=")">
+			#{invoiceId},
+			#{vanId},
+            #{item.itemId},
+            #{item.mrp},
+			#{item.expDate},
+			#{item.cp},
+			#{item.sp},
+            #{customerId},
+			#{item.itemCount},
+			#{discount},
+			#{otherCharges},
+			#{transactionType},
+			#{transactionStatus},
+			now(),
+			#{item.itemPriceId},
+			#{item.salePending},
+			#{item.purchasePending},
+			#{item.itemExpId},
+			#{transactionMode},
+			#{latitude},
+			#{longitude},
+			#{transactor}
+       </foreach>
+</insert>
+
+<update id="updateInventoryStockSale" parameterType="com.grocery.on.wheels.model.VanPurchaseTransaction">
+	<foreach collection="purchaseTransItem" item="purchItem" separator=";">
+		update inventory_item_map
+		set item_count = item_count - #{purchItem.purchasePending}
+		where item_price_id = #{purchItem.itemPriceId}
+		and item_exp_id = #{purchItem.itemExpId}
+	</foreach>;
+</update>
+
+<update id="updateVanStockPurchase" parameterType="com.grocery.on.wheels.model.VanPurchaseTransaction">
+	<foreach collection="purchaseTransItem" item="purchItem" separator=";">
+		update van_item_map 
+		set purchase_pending = purchase_pending + #{purchItem.itemCount}	
+		where van_id = #{vanId} 
+		and item_price_id = #{purchItem.itemPriceId}
+		and item_exp_id = #{purchItem.itemExpId}
+	</foreach>;
+</update>
+
+<update id="updateVanStockSale" parameterType="com.grocery.on.wheels.model.VanPurchaseTransaction">
+	<foreach collection="purchaseTransItem" item="purchItem" separator=";">
+		update van_item_map 
+		set item_count = item_count - #{purchItem.itemCount}
+		where van_id = #{vanId} 
+		and item_price_id = #{purchItem.itemPriceId}
+		and item_exp_id = #{purchItem.itemExpId}
+	</foreach>;
+</update>
+
+<insert id="addVanItemMap" parameterType="com.grocery.on.wheels.model.InventoryPurchaseTransaction">
+INSERT IGNORE INTO van_item_map (van_id, item_price_id, item_exp_id, item_count)
+	 VALUES 
+	 <foreach collection="purchaseTransItem" item="item" index="index" open="(" separator="),("  close=")">
+			#{vanId},
+            #{item.itemPriceId},
+            #{item.itemExpId},
+			0
+       </foreach>
+</insert>
+
+<insert id="insertPendingItems" parameterType="com.grocery.on.wheels.model.PendingItem">
+	INSERT IGNORE INTO pending_item (van_inv_id, item_price_id, item_exp_id, invc_id, pending_count, trans_type, transactor, transaction_status)
+	 VALUES 
+	 <foreach collection="pendingItemList" item="item" index="index" open="(" separator="),("  close=")">
+			#{item.vanInvId},
+            #{item.itemPriceId},
+            #{item.itemExpId},
+			#{item.invcId},
+			#{item.pendingCount},
+			#{item.transType},
+			#{item.transactor},
+			#{item.transactionStatus}
+       </foreach>
+</insert>
+
+<update id="updateInventoryItemMap">
+<foreach collection="itemValidateList" item="itemValidate">
+	update inventory_item_map 
+	set item_count = item_count + #{itemValidate.validateCount} - #{itemValidate.refundCount}
+	where inventory_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId};
+</foreach>
+</update>
+
+<update id="validateInventoryPurchaseItemMap">
+<foreach collection="itemValidateList" item="itemValidate">
+	update inventory_item_map 
+	set item_count = item_count + #{itemValidate.validateCount} - #{itemValidate.refundCount}
+	where inventory_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId};
+</foreach>
+</update>
+
+<update id="validateVanPurchaseItemMap">
+<foreach collection="itemValidateList" item="itemValidate">
+	update van_item_map 
+	set item_count = item_count + #{itemValidate.validateCount} - #{itemValidate.refundCount}
+	where van_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId};
+</foreach>
+</update>
+
+<update id="validateVanRefundPurchasePendingItem">
+<foreach collection="itemValidateList" item="itemValidate">
+	update van_item_map 
+	set item_count = item_count + #{itemValidate.refundCount} - #{itemValidate.validateCount}
+	where van_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId};
+</foreach>
+</update>
+
+<update id="updateInventoryPurchaseTransaction">
+<foreach collection="itemValidateList" item="itemValidate">
+	update inventory_transaction 
+	set quantity = quantity + #{itemValidate.validateCount} + #{itemValidate.refundCount},
+	purchase_pending = purchase_pending - #{itemValidate.validateCount} - #{itemValidate.refundCount}
+	where inventory_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId} and invoice_id = #{itemValidate.invoiceId};
+</foreach>
+</update>
+
+
+<update id="validateInventoryPurchaseTransaction">
+<foreach collection="itemValidateList" item="itemValidate">
+	update inventory_transaction 
+	set quantity = quantity + #{itemValidate.validateCount} ,
+	purchase_pending = purchase_pending - #{itemValidate.validateCount} - #{itemValidate.refundCount}
+	where inventory_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId} and invoice_id = #{itemValidate.invoiceId};
+</foreach>
+</update>
+
+<update id="validateInventorySaleTransaction">
+	<foreach collection="itemValidateList" item="itemValidate">
+		update inventory_transaction 
+		set quantity = quantity + #{itemValidate.validateCount} + #{itemValidate.refundCount} ,
+		sale_pending = sale_pending - #{itemValidate.validateCount} - #{itemValidate.refundCount}
+		where inventory_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+		and item_exp_id = #{itemValidate.itemExpId} and invoice_id = #{itemValidate.invoiceId};
+	</foreach>
+</update>
+
+<update id="validateVanPurchaseTransaction">
+<foreach collection="itemValidateList" item="itemValidate">
+	update van_transaction 
+	set quantity = quantity + #{itemValidate.validateCount} + #{itemValidate.refundCount} ,
+	purchase_pending = purchase_pending - #{itemValidate.validateCount} - #{itemValidate.refundCount}
+	where van_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId} and invoice_id = #{itemValidate.invoiceId};
+</foreach>
+</update>
+
+<update id="validateVanSaleTransaction">
+<foreach collection="itemValidateList" item="itemValidate">
+	update van_transaction 
+	set quantity = quantity + #{itemValidate.validateCount} + #{itemValidate.refundCount},
+	sale_pending = sale_pending - #{itemValidate.validateCount} - #{itemValidate.refundCount}
+	where van_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId} and invoice_id = #{itemValidate.invoiceId};
+</foreach>
+</update>
+
+<update id="validateClearVanTransactionPendingItem">
+<foreach collection="itemValidateList" item="itemValidate">
+	update van_transaction 
+	set sale_pending = sale_pending - #{itemValidate.validateCount}
+	where van_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId} and invoice_id = #{itemValidate.invoiceId};
+</foreach>
+</update>
+
+<update id="updatePurchasePendingItem">
+<foreach collection="itemValidateList" item="itemValidate">
+	update pending_item 
+	set pending_count = pending_count - #{itemValidate.validateCount} - #{itemValidate.refundCount}
+	where van_inv_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId} 
+	and item_exp_id = #{itemValidate.itemExpId} and invc_id = #{itemValidate.invoiceId};
+</foreach>
+</update>
+
+
+<update id="validateInventoryPurchasePendingItem">
+<foreach collection="itemValidateList" item="itemValidate">
+	update pending_item 
+	set pending_count = pending_count - #{itemValidate.validateCount} - #{itemValidate.refundCount}
+	where van_inv_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId} 
+	and item_exp_id = #{itemValidate.itemExpId} and invc_id = #{itemValidate.invoiceId};
+</foreach>
+</update>
+
+<update id="validateVanPurchasePendingItem">
+<foreach collection="itemValidateList" item="itemValidate">
+	update pending_item 
+	set pending_count = pending_count - #{itemValidate.validateCount} - #{itemValidate.refundCount}
+	where van_inv_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId} 
+	and item_exp_id = #{itemValidate.itemExpId} and invc_id = #{itemValidate.invoiceId};
+</foreach>
+</update>
+
+<update id="validateClearInventoryPendingItem">
+<foreach collection="itemValidateList" item="itemValidate">
+	update inventory_item_map
+	set item_count = item_count + #{itemValidate.validateCount} - #{itemValidate.refundCount}
+	where item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId};
+</foreach>
+</update>
+
+
+<update id="validateInventoryRefundPurchasePendingItem">
+<foreach collection="itemValidateList" item="itemValidate">
+	update inventory_item_map 
+	set item_count = item_count - #{itemValidate.validateCount} + #{itemValidate.refundCount}
+	where item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId};
+</foreach>
+</update>
+
+<update id="validateInventoryPurchase">
+<foreach collection="itemValidateList" item="itemValidate">
+	update inventory_item_map 
+	set purchase_pending = purchase_pending - #{itemValidate.validateCount} - #{itemValidate.refundCount},
+	item_count = item_count + #{itemValidate.validateCount}
+	where inventory_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId};
+</foreach>
+</update>
+
+<update id="validateInventorySale">
+<foreach collection="itemValidateList" item="itemValidate">
+	update inventory_item_map 
+	set sale_pending = sale_pending - #{itemValidate.validateCount},
+	item_count = item_count + #{itemValidate.validateCount}
+	where inventory_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId};
+</foreach>
+</update>
+
+<update id="validateVanPurchase">
+<foreach collection="itemValidateList" item="itemValidate">
+	update van_item_map 
+	set purchase_pending = purchase_pending - #{itemValidate.validateCount},
+	item_count = item_count + #{itemValidate.validateCount}
+	where van_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId};
+</foreach>
+</update>
+
+<update id="validateVanSale">
+<foreach collection="itemValidateList" item="itemValidate">
+	update van_item_map 
+	set sale_pending = sale_pending - #{itemValidate.validateCount},
+	item_count = item_count + #{itemValidate.validateCount}
+	where van_id = #{itemValidate.vanInvId} and item_price_id = #{itemValidate.itemPriceId}
+	and item_exp_id = #{itemValidate.itemExpId};
+</foreach>
+</update>
+
+<update id="correctVanTransaction">
+<foreach collection="invoiceCorrectionObj" item="invcCorrectionObj">
+	update van_transaction set 
+	<if test="transType == 'SALE'">
+		quantity = quantity - #{invcCorrectionObj.correctionCount}
+	</if>
+	<if test="transType == 'REFUND'">
+		quantity = quantity + #{invcCorrectionObj.correctionCount}
+	</if>
+	where van_id = #{invcCorrectionObj.invVanId} and
+	item_price_id = #{invcCorrectionObj.itemPriceId} and
+	item_exp_id = #{invcCorrectionObj.itemExpId} and
+	invoice_id = #{invcCorrectionObj.invoiceId};
+</foreach>
+</update>
+
+<update id="correctVanItem">
+<foreach collection="invoiceCorrectionObj" item="invcCorrectionObj">
+	update van_item_map set 
+	item_count = item_count + #{invcCorrectionObj.correctionCount}
+	where van_id = #{invcCorrectionObj.invVanId} and
+	item_price_id = #{invcCorrectionObj.itemPriceId} and
+	item_exp_id = #{invcCorrectionObj.itemExpId};
+</foreach>
+</update>
+
+<update id="correctInventoryTransaction">
+<foreach collection="invoiceCorrectionObj" item="invcCorrectionObj">
+	update inventory_transaction set 
+	quantity = quantity + #{invcCorrectionObj.correctionCount}
+	where inventory_id = #{invcCorrectionObj.invVanId} and
+	item_price_id = #{invcCorrectionObj.itemPriceId} and
+	item_exp_id = #{invcCorrectionObj.itemExpId} and
+	invoice_id = #{invcCorrectionObj.invoiceId};
+</foreach>
+</update>
+
+<update id="correctVanInventoryItem">
+<foreach collection="invoiceCorrectionObj" item="invcCorrectionObj">
+	update inventory_item_map set 
+	item_count = item_count - #{invcCorrectionObj.correctionCount}
+	where
+	item_price_id = #{invcCorrectionObj.itemPriceId} and
+	item_exp_id = #{invcCorrectionObj.itemExpId};
+</foreach>
+</update>
+
+<update id="correctInventoryItem">
+<foreach collection="invoiceCorrectionObj" item="invcCorrectionObj">
+	update inventory_item_map set 
+	item_count = item_count - #{invcCorrectionObj.correctionCount}
+	where inventory_id = #{invcCorrectionObj.invVanId} and
+	item_price_id = #{invcCorrectionObj.itemPriceId} and
+	item_exp_id = #{invcCorrectionObj.itemExpId};
+</foreach>
+</update>
+
+
+<resultMap type="com.grocery.on.wheels.model.InventoryPurchaseTransaction" id="inventoryPurchaseTransactionMap">
+		<id property="invoiceId" column="invoiceId"/>
+		<result property="inventoryId" column="inventoryId"/>
+		<result property="supplierId" column="supplierId"/>
+		<result property="discount" column="discount"/>
+		<result property="otherCharges" column="otherCharges"/>
+		<result property="transactionType" column="transactionType"/>
+		<result property="transactionStatus" column="transactionStatus"/>
+		<result property="transactionDate" column="transactionDate"/>
+		<result property="customerName" column="customerName"/>
+		<collection property="purchaseTransItem" javaType="ArrayList" ofType="com.grocery.on.wheels.model.PurchaseTransactionItem">
+			<id property="itemPriceId" column="itemPriceId"/>
+			<id property="expDate" column="expDate" />
+			<result property="itemId" column="itemId"/>
+			<result property="itemCount" column="itemCount"/>
+			<result property="mrp" column="mrp"/>
+			<result property="cp" column="cp"/>
+			<result property="sp" column="sp"/>
+			<result property="itemName" column="itemName" />
+			<result property="itemDesc" column="itemDesc" />
+		</collection>
+	</resultMap>
+	
+	<resultMap type="com.grocery.on.wheels.model.VanPurchaseTransaction" id="vanPurchaseTransactionMap">
+		<id property="invoiceId" column="invoiceId"/>
+		<result property="vanId" column="vanId"/>
+		<result property="customerId" column="customerId"/>
+		<result property="discount" column="discount"/>
+		<result property="otherCharges" column="otherCharges"/>
+		<result property="transactionType" column="transactionType"/>
+		<result property="transactionStatus" column="transactionStatus"/>
+		<result property="transactionDate" column="transactionDate"/>
+		<result property="customerName" column="customerName"/>
+		<result property="customerMob" column="customerMob"/>
+		<result property="transactionMode" column="transactionMode"/>		
+		<collection property="purchaseTransItem" javaType="ArrayList" ofType="com.grocery.on.wheels.model.PurchaseTransactionItem">
+			<id property="itemPriceId" column="itemPriceId"/>
+			<id property="expDate" column="expDate" />
+			<result property="itemId" column="itemId"/>
+			<result property="itemCount" column="itemCount"/>
+			<result property="mrp" column="mrp"/>
+			<result property="cp" column="cp"/>
+			<result property="sp" column="sp"/>
+			<result property="itemName" column="itemName" />
+			<result property="itemDesc" column="itemDesc" />
+		</collection>
+	</resultMap>
+
+<select id="getInventoryPurchaseTransaction" parameterType="String" resultMap="inventoryPurchaseTransactionMap">
+select 
+invoice_id as invoiceId, inventory_id as inventoryId, vt.item_id as itemId, mrp as mrp, item_exp_dt as expDate, cp, sp,
+ vt.supplier_id as supplierId, quantity as itemCount, discount, other_charges as otherCharges,
+ transaction_type as transactionType, transaction_status as transactionStatus, transaction_date as transactionDate,
+ item_price_id as itemPriceId, ii.item_name as itemName, c.supplier_name as customerName,
+ concat(ii.item_unit_count, " ", ii.item_unit) as itemDesc
+from inventory_transaction vt 
+left join item_info ii on (vt.item_id = ii.item_id)
+left join supplier c on (vt.supplier_id = c.supplier_id)
+where invoice_id =  #{invoiceId}
+order by transaction_date desc;
+
+</select>
+
+<select id="getVanPurchaseTransaction" parameterType="String" resultMap="vanPurchaseTransactionMap">
+select 
+invoice_id as invoiceId, van_id as vanId, vt.item_id as itemId, item_mrp as mrp, item_exp_date as expDate, cp, sp,
+ vt.customer_id as customerId, quantity as itemCount, discount, other_charges as otherCharges,
+ transaction_type as transactionType, transaction_status as transactionStatus, transaction_date as transactionDate,
+ item_price_id as itemPriceId, ii.item_name as itemName, c.customer_name as customerName, vt.customer_mob as customerMob,
+ vt.trans_mode as transactionMode, concat(ii.item_unit_count, " ", ii.item_unit) as itemDesc
+from van_transaction vt 
+left join item_info ii on (vt.item_id = ii.item_id)
+left join customer c on (vt.customer_id = c.customer_id)
+where invoice_id =  #{invoiceId}
+order by transaction_date desc;
+</select>
+
+<delete id="clearTransaction">
+	delete from inventory_transaction;
+	delete from van_transaction;
+</delete>
+
+<select id="getVanAvailableStocksPurchase" resultType="com.grocery.on.wheels.model.AvailableStock">
+	select *, (A.stockAvailable + A.pendingCount - A.requestedStock) > 0 as available from
+	(
+		SELECT sum(iim.item_count) as stockAvailable, 
+		group_concat(distinct iim.item_price_id) as item_price_id, group_concat(distinct iim.item_exp_id) as item_exp_id,
+		 #{itemCount} as requestedStock, sum(pi.pending_count) as pendingCount
+		FROM inventory_item_map iim
+		left join pending_item pi on (iim.item_exp_id = pi.item_exp_id and iim.item_price_id = pi.item_price_id)
+		where iim.item_price_id = #{itemPriceId} and iim.item_exp_id = #{itemExpId}
+		and pi.trans_type = 'PURCHASE'
+		group by pi.item_price_id, pi.item_exp_id
+	) A
+</select>
+
+<select id="getVanAvailableStocksSale" resultType="com.grocery.on.wheels.model.AvailableStock">
+	select *, (A.stockAvailable + A.pendingCount - A.requestedStock) > 0 as available from
+	(
+		SELECT sum(iim.item_count) as stockAvailable, 
+		group_concat(distinct iim.item_price_id) as item_price_id, group_concat(distinct iim.item_exp_id) as item_exp_id,
+		 #{itemCount} as requestedStock, sum(pi.pending_count) as pendingCount
+		FROM van_item_map iim
+		left join pending_item pi on (iim.item_exp_id = pi.item_exp_id and iim.item_price_id = pi.item_price_id)
+		where iim.item_price_id = #{itemPriceId} and iim.item_exp_id = #{itemExpId}
+		and pi.trans_type = 'SALE'
+		group by pi.item_price_id, pi.item_exp_id
+	) A
+</select>
+<select id="getInventoryAvailableStocksPurchase" resultType="com.grocery.on.wheels.model.AvailableStock">
+	select *, (A.stockAvailable + A.pendingCount - A.requestedStock) > 0 as available from
+	(
+		SELECT sum(iim.item_count) as stockAvailable, 
+		group_concat(distinct iim.item_price_id) as item_price_id, group_concat(distinct iim.item_exp_id) as item_exp_id,
+		 #{itemCount} as requestedStock, sum(pi.pending_count) as pendingCount
+		FROM van_item_map iim
+		left join pending_item pi on (iim.item_exp_id = pi.item_exp_id and iim.item_price_id = pi.item_price_id)
+		where iim.item_price_id = #{itemPriceId} and iim.item_exp_id = #{itemExpId}
+		and pi.trans_type = 'PURCHASE'
+		group by pi.item_price_id, pi.item_exp_id
+	) A
+</select>
+<select id="getInventoryAvailableStocksSale" resultType="com.grocery.on.wheels.model.AvailableStock">
+	select *, (A.stockAvailable + A.pendingCount - A.requestedStock) > 0 as available from
+	(
+		SELECT sum(iim.item_count) as stockAvailable, 
+		group_concat(distinct iim.item_price_id) as item_price_id, group_concat(distinct iim.item_exp_id) as item_exp_id,
+		 #{itemCount} as requestedStock, sum(pi.pending_count) as pendingCount
+		FROM inventory_item_map iim
+		left join pending_item pi on (iim.item_exp_id = pi.item_exp_id and iim.item_price_id = pi.item_price_id)
+		where iim.item_price_id = #{itemPriceId} and iim.item_exp_id = #{itemExpId}
+		and pi.trans_type = 'SALE'
+		group by pi.item_price_id, pi.item_exp_id
+	) A
+</select>
+
+</mapper>

@@ -1,0 +1,146 @@
+<?xml version = "1.0" encoding = "UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.grocery.on.wheels.dao.ItemMapper">
+<insert id="addItem" parameterType="com.grocery.on.wheels.model.Item">
+	INSERT INTO item_info (item_id, item_name, item_code, item_unit, item_unit_count, item_icon, item_qrbar_code, create_dt, create_id, update_dt, update_id)
+	 VALUES (#{itemId}, #{itemName}, #{itemCode}, #{itemUnit}, #{itemUnitCount}, #{itemIcon}, #{itemQrBarCode}, now(), 'CID', now(), 'UID');
+</insert>
+
+<insert id="addItemPriceExpiry"  parameterType="com.grocery.on.wheels.model.ItemPriceExpiry">
+	INSERT IGNORE INTO item_exp (item_exp_id, exp_dt)
+	VALUES 
+	 <foreach collection="itemPriceExp" item="priceExp" index="index" open="(" separator="),("  close=")">
+		 #{priceExp.itemExpId},
+		 #{priceExp.expDate}
+	</foreach>
+</insert>
+
+<insert id="addItemPrice">
+	INSERT IGNORE INTO item_price_map (item_price_id,item_id, mrp, cp, sp)
+	 VALUES (
+			#{itemPrice.itemPriceId},
+            #{itemId},
+            #{itemPrice.mrp},
+            #{itemPrice.cp},
+            #{itemPrice.sp}
+			);	
+</insert>
+
+<insert id="addInvItemMap">
+INSERT IGNORE INTO inventory_item_map (inventory_id, item_price_id, item_exp_id, item_count)
+VALUES 
+ <foreach collection="itemPriceExp" item="priceExp" index="index" open="(" separator="),("  close=")">
+     #{inventoryId},
+     #{itemPriceId},
+     #{priceExp.itemExpId},
+     #{priceExp.itemCount}
+</foreach>
+</insert>
+
+<update id="editItem">
+	update item_info
+	set 
+	item_name = #{item.itemName}, 
+	item_code = #{item.itemCode}, 
+	item_unit = #{item.itemUnit}, 
+	item_unit_count = #{item.itemUnitCount}, 
+	<if test="iconFileUpdate == true">
+	item_icon = #{item.itemIcon}, 
+	</if>
+	<if test="qrFileUpdate == true">
+	item_qrbar_code = #{item.itemQrBarCode}, 
+	</if>
+	update_dt = now()
+	where item_id = #{item.itemId}
+</update>
+
+<delete id="deleteItemPrice" parameterType="com.grocery.on.wheels.model.ItemPrice">
+	delete from item_price_map where item_price_id in 
+	<foreach item="price" collection="itemPrices" separator="," open="(" close=")">
+        #{price.itemPriceId}
+    </foreach>
+</delete>
+
+<delete id="deleteExpiry" parameterType="com.grocery.on.wheels.model.ItemPrice">
+	delete from inventory_item_map where item_price_id in 
+	<foreach item="price" collection="itemPrices" separator="," open="(" close=")">
+        #{price.itemPriceId}
+    </foreach>
+</delete>
+
+<delete id="deleteItemExpiry" parameterType="com.grocery.on.wheels.model.ItemPrice">
+	<foreach item="price" collection="itemPrices">
+		delete from item_exp where item_exp_id in 
+		(SELECT item_exp_id FROM inventory_item_map where item_price_id = #{price.itemPriceId});
+	</foreach>
+</delete>
+
+
+
+<delete id="clearItem">
+delete from item_price_map;
+delete from item_info;
+</delete>
+
+<delete id="deleteItemInfo">
+delete from item_info where item_id in
+(
+select A.itemId from 
+(
+select ii.item_id as itemId from inventory_item_map iim
+join item_price_map ipm on (iim.item_price_id = ipm.item_price_id and iim.inventory_id = #{inventoryId})
+join item_info ii on (ipm.item_price_id = iim.item_price_id and ii.item_id = #{itemId})
+) A
+)
+</delete>
+
+<delete id="deleteItemPriceMap">
+delete from item_price_map where item_id in
+(
+select A.itemId from 
+(
+select ii.item_id as itemId from inventory_item_map iim
+join item_price_map ipm on (iim.item_price_id = ipm.item_price_id and iim.inventory_id = #{inventoryId})
+join item_info ii on (ipm.item_price_id = iim.item_price_id and ii.item_id = #{itemId})
+) A
+)
+</delete>
+
+<delete id="deleteInventoryItemMap">
+delete from inventory_item_map where item_price_id in
+(
+select A.itemPriceId from 
+(
+select ipm.item_price_id as itemPriceId from inventory_item_map iim join item_price_map ipm on (iim.item_price_id = ipm.item_price_id and iim.inventory_id = #{inventoryId} and ipm.item_id = #{itemId})
+) A
+)
+</delete>
+
+<delete id="deleteVanItemMap">
+delete from van_item_map where item_price_id in
+(
+select A.itemPriceId from 
+(
+select ipm.item_price_id as itemPriceId from van_item_map vim
+join item_price_map ipm on (vim.item_price_id = ipm.item_price_id)
+join item_info ii on (ipm.item_price_id = vim.item_price_id and ii.item_id = #{itemId})
+) A
+)
+</delete>
+
+
+<select id="getPendingItems" parameterType="String" resultType="com.grocery.on.wheels.model.PendingItem">
+select van_inv_id as vanInvId, item_price_id as itemPriceId, exp_dt as expDate,
+ invc_id as invcId, pending_count as pendingCount, trans_type as transType, transactor as transactor
+from pending_item where van_inv_id = #{inventoryVanId}
+</select> 
+
+<select id="getItemByItemCode" parameterType="String" resultType="com.grocery.on.wheels.model.Item">
+	select ii.item_id as itemId, ii.item_code as itemCode from inventory_item_map iim
+	join item_price_map ipm on (iim.item_price_id = ipm.item_price_id and iim.inventory_id = #{inventoryId})
+	join item_info ii on (ipm.item_price_id = iim.item_price_id and ii.item_code = #{itemCode})
+	limit 1
+</select>
+
+</mapper>

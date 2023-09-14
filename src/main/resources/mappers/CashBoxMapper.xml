@@ -1,0 +1,45 @@
+<?xml version = "1.0" encoding = "UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.grocery.on.wheels.dao.CashBoxMapper">
+	<select id="getAccumulatedCashBox" resultType="com.grocery.on.wheels.model.CashBox">
+		select van.van_id as vanId, ifnull(sum(cash_box.box_initial_amt), 0) as boxInitialAmt, 
+		ifnull(sum(cash_box.box_stlmt_amt), 0) as boxStlmtAmt from van
+		left join cash_box on cash_box.van_id = van.van_id
+		group by van.van_id;
+	</select>
+	
+	<select id="getCashTransaction" resultType="com.grocery.on.wheels.model.CashTrans">
+	<![CDATA[
+		SELECT sum(quantity * item_mrp) as amt, transaction_type as transType, van_id as vanId FROM van_transaction
+		where trans_mode = 'cash' and van_id = #{vanId}
+		group by transaction_type
+		]]>
+	</select>
+	
+	<insert id="addCashBox" parameterType="com.grocery.on.wheels.model.CashBox">
+		INSERT INTO `grocery`.`cash_box` (`box_id`, `van_id`, `box_initial_amt`, `box_stlmt_amt`, `stlmt_dt`) 
+		VALUES (#{boxId}, #{vanId}, #{boxInitialAmt}, #{boxStlmtAmt}, now());
+	</insert>
+	
+	<select id="getCashBoxes" resultType="com.grocery.on.wheels.model.CashBox">
+		select box_id as boxId, van_id as vanId, box_initial_amt as boxInitialAmt, box_stlmt_amt as boxStlmtAmt, stlmt_dt as settlementDate 
+		from cash_box
+	</select>
+	
+	<select id="getVanCashBoxes" resultType="com.grocery.on.wheels.model.CashBox">
+	<![CDATA[
+		select box_id as boxId, van_id as vanId, box_initial_amt as boxInitialAmt, box_stlmt_amt as boxStlmtAmt, stlmt_dt as settlementDate 
+		from cash_box
+		where stlmt_dt > #{fromDate} and stlmt_dt < #{toDate}
+	]]>
+	<if test="vanId != null and vanId != ''">
+		and van_id = #{vanId} 
+	</if>
+	<![CDATA[
+		order by stlmt_dt desc
+	]]>
+	</select>	
+</mapper>
+

@@ -1,0 +1,132 @@
+<?xml version = "1.0" encoding = "UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.grocery.on.wheels.dao.VanMapper">
+	<resultMap type="com.grocery.on.wheels.model.Item" id="vanItemMap">
+		<id property="itemId" column="itemId"/>
+		<result property="domain" column="domain"/>
+		<result property="vanId" column="vanId"/>
+		<result property="itemName" column="itemName"/>
+		<result property="itemCode" column="itemCode"/>
+		<result property="itemUnit" column="itemUnit"/>
+		<result property="itemUnitCount" column="itemUnitCount"/>
+		<result property="itemIcon" column="itemIcon"/>
+		<result property="itemQrBarCode" column="itemQrBarCode"/>
+		<collection property="itemPrice" javaType="ArrayList" ofType="com.grocery.on.wheels.model.ItemPrice">
+			<id property="itemPriceId" column="itemPriceId" />
+			<result property="mrp" column="mrp"/>
+			<result property="cp" column="cp"/>
+			<result property="sp" column="sp"/>
+			<collection property="priceExpiry" ofType="com.grocery.on.wheels.model.ItemPriceExpiry" javaType="ArrayList" >
+				<id property="itemExpId" column="itemExpId" />
+				<result property="expDate" column="expDate" />
+				<result property="itemCount" column="itemCount" />
+				<result property="expired" column="expired" />
+				<collection property="pendingItems" ofType="com.grocery.on.wheels.model.ItemPending" javaType="ArrayList" >
+					<id property="invoiceId" column="invoiceId" />
+					<result property="purchasePending" column="purchasePending" />
+					<result property="salePending" column="salePending" />
+					<result property="transactionStatus" column="transactionStatus" />
+				</collection>
+			</collection>
+		</collection>
+	</resultMap>
+	<resultMap type="com.grocery.on.wheels.model.Item" id="vanStockItemMap">
+		<id property="itemId" column="itemId"/>
+		<result property="domain" column="domain"/>
+		<result property="vanId" column="vanId"/>
+		<result property="itemName" column="itemName"/>
+		<result property="itemCode" column="itemCode"/>
+		<result property="itemUnit" column="itemUnit"/>
+		<result property="itemUnitCount" column="itemUnitCount"/>
+		<result property="itemIcon" column="itemIcon"/>
+		<result property="itemQrBarCode" column="itemQrBarCode"/>
+		<collection property="itemPrice" javaType="ArrayList" ofType="com.grocery.on.wheels.model.ItemPrice">
+			<id property="itemPriceId" column="itemPriceId" />
+			<result property="mrp" column="mrp"/>
+			<result property="cp" column="cp"/>
+			<result property="sp" column="sp"/>
+			<collection property="priceExpiry" ofType="com.grocery.on.wheels.model.ItemPriceExpiry" javaType="ArrayList" >
+				<id property="itemExpId" column="itemExpId" />
+				<result property="expDate" column="expDate" />
+				<result property="itemCount" column="itemCount" />
+				<result property="expired" column="expired" />
+				<collection property="stockPendingItems" ofType="com.grocery.on.wheels.model.VanItemStockPending" javaType="ArrayList" >
+					<id property="invoiceId" column="invoiceId" />
+					<result property="purchasePending" column="purchasePending" />
+					<result property="salePending" column="salePending" />
+					<result property="transactionStatus" column="transactionStatus" />
+					<result property="vanItemCount" column="vanItemCount" />
+					<result property="invItemCount" column="invItemCount" />
+					<result property="stockDiff" column="stockDiff" />
+				</collection>
+			</collection>
+		</collection>
+	</resultMap>
+	<select id="getVans" resultType="com.grocery.on.wheels.model.Van" parameterType="String">
+		select van_id as vanId, van_name as vanName from van where inventory_id = #{inventoryId}
+	</select>
+	<select id="getItems" resultMap="vanItemMap" parameterType="String">
+		SELECT vim.van_id as vanId, ipm.item_id as itemId,
+			vim.item_count as itemCount, ii.item_name as itemName, ii.item_code as itemCode,
+			ii.item_unit as itemUnit, ii.item_unit_count as itemUnitCount,
+			ii.item_icon as itemIcon, ii.item_qrbar_code as itemQrBarCode,
+			ipm.mrp as mrp, ipm.cp as cp, ipm.sp as sp, ie.exp_dt as expDate, ie.item_exp_id as itemExpId, 
+			ipm.item_price_id as itemPriceId, 
+            CASE
+				WHEN pi.trans_type = 'PURCHASE' THEN pi.pending_count
+				ELSE 0
+			END as purchasePending,
+            CASE
+				WHEN pi.trans_type = 'SALE' THEN pi.pending_count
+				ELSE 0
+			END as salePending,
+			invc_id as invoiceId,
+			pi.transaction_status as transactionStatus,
+            now() > ie.exp_dt as expired
+		FROM van_item_map vim
+			join item_exp ie on (vim.item_exp_id = ie.item_exp_id)
+		    join item_price_map ipm on (vim.item_price_id = ipm.item_price_id 
+			and vim.van_id = #{vanId})
+        	join item_info ii on (ipm.item_id = ii.item_id)
+            left join pending_item pi on (pi.van_inv_id = vim.van_id and 
+            pi.item_price_id = ipm.item_price_id and pi.item_exp_id=vim.item_exp_id);
+	</select>
+	
+	<select id="getVanInvItemsStock" resultMap="vanStockItemMap" parameterType="String">
+		SELECT vim.van_id as vanId, ipm.item_id as itemId,
+			vim.item_count as itemCount, ii.item_name as itemName, ii.item_code as itemCode,
+			ii.item_unit as itemUnit, ii.item_unit_count as itemUnitCount,
+			ii.item_icon as itemIcon, ii.item_qrbar_code as itemQrBarCode,
+			ipm.mrp as mrp, ipm.cp as cp, ipm.sp as sp, ie.exp_dt as expDate, ie.item_exp_id as itemExpId, 
+			ipm.item_price_id as itemPriceId, 
+            CASE
+				WHEN pi.trans_type = 'PURCHASE' THEN pi.pending_count
+				ELSE 0
+			END as purchasePending,
+            CASE
+				WHEN pi.trans_type = 'SALE' THEN pi.pending_count
+				ELSE 0
+			END as salePending,
+			invc_id as invoiceId,
+			pi.transaction_status as transactionStatus,
+            now() > ie.exp_dt as expired,
+            ifnull(vim.item_count, 0) as vanItemCount,
+            ifnull(iim.item_count, 0) as invItemCount,
+            ifnull(iim.item_count, 0) - ifnull(vim.item_count, 0) as stockDiff
+		FROM inventory_item_map iim
+			join item_exp ie on (iim.item_exp_id = ie.item_exp_id)
+		    join item_price_map ipm on (iim.item_price_id = ipm.item_price_id)
+        	join item_info ii on (ipm.item_id = ii.item_id)
+			left join van_item_map vim on (iim.item_price_id = vim.item_price_id 
+            and iim.item_exp_id = vim.item_exp_id   
+			and vim.van_id = #{vanId})
+            left join pending_item pi on (pi.van_inv_id = vim.van_id and 
+            pi.item_price_id = ipm.item_price_id and pi.item_exp_id=vim.item_exp_id);
+	</select>
+	
+	<delete id="clearVan">
+		delete from van_item_map;
+		delete from van;
+	</delete>
+</mapper>

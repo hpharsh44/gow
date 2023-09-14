@@ -1,0 +1,146 @@
+<?xml version = "1.0" encoding = "UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.grocery.on.wheels.dao.AuditMapper">
+	
+	<insert id="addAudit" parameterType="com.grocery.on.wheels.model.Audit">
+		INSERT INTO audit (audit_id, audit_name, audit_date, van_id, audit_state) 
+		VALUES (#{auditId}, #{auditName}, now(), #{vanId}, #{state});
+	</insert>
+	
+	<insert id="insertAuditItems">
+		INSERT INTO audit_item_map (audit_id, item_id, item_count, item_price_id, item_exp_id)
+		VALUES 
+	 <foreach collection="auditItems" item="item" index="index" open="(" separator="),("  close=")">
+			#{auditId},
+            #{item.itemId},
+            #{item.itemCount},
+			#{item.itemPriceId},
+			#{item.itemExpId}
+       </foreach>
+	</insert>
+	
+	<resultMap type="com.grocery.on.wheels.model.Audit" id="auditResultMap">
+		<id property="auditId" column="auditId"/>
+		<result property="auditName" column="auditName"/>
+		<result property="auditDate" column="auditDate"/>
+		<result property="vanId" column="vanId"/>		
+		<result property="state" column="state"/>		
+		<collection property="auditItem" javaType="ArrayList" ofType="com.grocery.on.wheels.model.AuditItem">
+			<id property="itemId" column="itemId"/>
+			<result property="itemCount" column="itemCount"/>
+			<result property="itemIcon" column="itemIcon"/>
+			<result property="itemPriceId" column="itemPriceId"/>
+			<result property="itemExpId" column="itemExpId"/>
+			<result property="expDate" column="expDate"/>
+			<result property="mrp" column="mrp"/>
+			<result property="cp" column="cp"/>
+			<result property="sp" column="sp"/>
+			<result property="itemName" column="itemName" />
+			<result property="vanStock" column="vanStock" />
+			<result property="stockItemDiff" column="stockItemDiff" />
+		</collection>
+	</resultMap>
+	
+	<resultMap type="com.grocery.on.wheels.model.NonAuditItems" id="nonAuditResultMap">
+		<id property="itemPriceId" column="itemPriceId"/>
+		<id property="itemId" column="itemId"/>
+		<id property="itemExpId" column="itemExpId"/>
+		<result property="itemName" column="itemName" />
+		<result property="expDt" column="expDt" />
+	</resultMap>
+	
+	<update id="setZeroNonAuditItems">
+		update van_item_map 
+		set item_count = 0	
+		where item_exp_id not in 
+		<foreach item="itemExpId" collection="itemExpIdList" separator="," open="(" close=")">
+			#{itemExpId}
+		</foreach>
+	</update>
+	
+	<select id="getNonAuditItems" resultMap="nonAuditResultMap">
+		SELECT vim.item_price_id as itemPriceId, 
+		ii.item_id as itemId, ii.item_name as itemName, ie.exp_dt as expDt, vim.item_exp_id as itemExpId
+		  FROM van_item_map vim
+		  join item_price_map ipm on (vim.item_price_id = ipm.item_price_id)
+		join item_info ii on (ii.item_id = ipm.item_id)
+		join item_exp ie on (ie.item_exp_id = vim.item_exp_id)
+		where vim.item_exp_id not in
+		<foreach item="itemExpId" collection="itemExpIdList" separator="," open="(" close=")">
+			#{itemExpId}
+		</foreach>
+		and vim.item_count > 0;
+	</select>
+	
+	<select id="getAudits" resultMap="auditResultMap">
+		SELECT adt.audit_id as auditId, adt.audit_name as auditName, adt.audit_date as auditDate,
+		adt.van_id as vanId, adt.audit_state as state,
+		 aim.item_id as itemId, aim.item_count as itemCount, aim.item_price_id as itemPriceId, 
+		 aim.item_exp_id as itemExpId, ii.item_name as itemName, item_icon as itemIcon, 
+		 ie.exp_dt as expDate, ipm.mrp as mrp, ipm.cp as cp, ipm.sp as sp
+		 FROM audit adt
+		join audit_item_map aim on (adt.audit_id = aim.audit_id)
+		join item_info ii on (ii.item_id = aim.item_id)
+		join item_exp ie on (ie.item_exp_id = aim.item_exp_id)
+		join item_price_map ipm on (aim.item_price_id = ipm.item_price_id)
+		<if test="vanId != null and vanId != ''">
+			where adt.van_id = #{vanId} 
+		</if>;
+	</select>
+	
+	<select id="findAudit" resultMap="auditResultMap" parameterType="String">
+		SELECT adt.audit_id as auditId, adt.audit_name as auditName, adt.audit_date as auditDate,
+		adt.van_id as vanId, adt.audit_state as state,
+		 aim.item_id as itemId, aim.item_count as itemCount, aim.item_price_id as itemPriceId, 
+		 aim.item_exp_id as itemExpId, ii.item_name as itemName, item_icon as itemIcon, 
+		 ie.exp_dt as expDate, ipm.mrp as mrp, ipm.cp as cp, ipm.sp as sp, vim.item_count as vanStock,
+         (aim.item_count - vim.item_count) as stockItemDiff
+		 FROM audit adt
+		join audit_item_map aim on (adt.audit_id = aim.audit_id)
+		join item_info ii on (ii.item_id = aim.item_id)
+		join item_exp ie on (ie.item_exp_id = aim.item_exp_id)
+		join item_price_map ipm on (aim.item_price_id = ipm.item_price_id)
+		join van_item_map vim on (adt.van_id = vim.van_id and aim.item_price_id = vim.item_price_id and aim.item_exp_id = vim.item_exp_id)
+		where adt.audit_id = #{auditId}
+	</select>
+	
+	<select id="getRangeAudits" resultMap="auditResultMap">
+	<![CDATA[
+	SELECT adt.audit_id as auditId, adt.audit_name as auditName, adt.audit_date as auditDate,
+		adt.van_id as vanId, adt.audit_state as state,
+		 aim.item_id as itemId, aim.item_count as itemCount, aim.item_price_id as itemPriceId, 
+		 aim.item_exp_id as itemExpId, ii.item_name as itemName, item_icon as itemIcon, 
+		 ie.exp_dt as expDate, ipm.mrp as mrp, ipm.cp as cp, ipm.sp as sp
+		 FROM audit adt
+		join audit_item_map aim on (adt.audit_id = aim.audit_id)
+		join item_info ii on (ii.item_id = aim.item_id)
+		join item_exp ie on (ie.item_exp_id = aim.item_exp_id)
+		join item_price_map ipm on (aim.item_price_id = ipm.item_price_id)
+		where adt.audit_date > #{fromDate} and adt.audit_date < #{toDate}
+	]]>
+	<if test="vanId != null and vanId != ''">
+		and adt.van_id = #{vanId} 
+	</if>
+	<![CDATA[
+		order by adt.audit_date desc
+	]]>
+	</select>
+	
+	<update id="updateAuditState" parameterType="com.grocery.on.wheels.model.Audit" >
+		update audit set audit_state = #{state}
+		where audit_id = #{auditId}
+	</update>
+
+	<update id="updateVanItemCount" >
+		<foreach collection="auditItems" item="auditItem">
+			update van_item_map 
+			set item_count = item_count + #{auditItem.stockItemDiff}	
+			where van_id = #{vanId} 
+			and item_price_id = #{auditItem.itemPriceId}
+			and item_exp_id = #{auditItem.itemExpId};
+		</foreach>
+	</update>
+</mapper>
+

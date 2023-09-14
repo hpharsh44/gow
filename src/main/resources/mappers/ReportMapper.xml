@@ -1,0 +1,113 @@
+<?xml version = "1.0" encoding = "UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.grocery.on.wheels.dao.ReportMapper">
+	<select id="getInventoryReports" resultType="com.grocery.on.wheels.model.ItemReport">
+	<![CDATA[
+		SELECT invoice_id as invoiceId, inventory_id as inventoryVanId, inventory_transaction.item_id as itemId,
+		 mrp as mrp, cp as cp, sp as sp, item_exp_dt as itemExpDt, supplier_id as supplierCustId, 
+		quantity as quantity, transaction_type as transactionType, transaction_status as transactionStatus,
+		 transaction_date as transactionDate, sale_pending as salePending, purchase_pending as purchasePending,
+		 item_info.item_name as itemName
+		 FROM inventory_transaction
+		 join item_info on (inventory_transaction.item_id = item_info.item_id)
+		where inventory_id = #{inventoryId} and transaction_date > #{fromDate} and transaction_date < #{toDate}
+		]]>
+	</select>
+	
+	<select id="getVanReports" resultType="com.grocery.on.wheels.model.ItemReport">
+	<![CDATA[
+		SELECT invoice_id as invoiceId, van_id as inventoryVanId, van_transaction.item_id as itemId,
+		 item_mrp as mrp, cp as cp, sp as sp, item_exp_date as itemExpDt, customer_id as supplierCustId, 
+		quantity as quantity, transaction_type as transactionType, transaction_status as transactionStatus,
+		 transaction_date as transactionDate, sale_pending as salePending, purchase_pending as purchasePending,
+		trans_mode as transactionMode,
+		 item_info.item_name as itemName,
+		 van_transaction.trans_req as transactor
+		 FROM van_transaction
+		 join item_info on (van_transaction.item_id = item_info.item_id)
+		where van_id = #{vanId} and transaction_date > #{fromDate} and transaction_date < #{toDate}
+		
+		]]>
+	</select>
+	
+	<select id="getInventoryInvoiceList" resultType="com.grocery.on.wheels.model.InvoiceReport">
+	<![CDATA[
+		SELECT invoice_id as invoiceId, group_concat(distinct inventory_id) as inventoryVanId
+		,sum(mrp * quantity) as totalMrp
+		,sum(cp * quantity) as totalCp
+        ,sum(sp * quantity) as totalSp
+         ,sum(quantity) as totalQuantity
+        ,sum(purchase_pending) as totalPurchasePending
+        , sum(sale_pending) as totalSsalePending
+        , group_concat(distinct supplier_id) as supplierCustId
+        , group_concat(distinct transaction_type) as transactionType
+        ,group_concat(distinct transaction_status) as transactionStatus
+        ,group_concat(distinct transaction_date) as transactionDate
+		,group_concat(distinct trans_mode) as transactionMode
+		 FROM inventory_transaction
+		where inventory_id = #{inventoryId} 
+        and transaction_date > #{fromDate} and transaction_date < #{toDate}
+        group by invoice_id
+		order by transactionDate desc
+	]]>
+	</select>
+	
+	<select id="getVanInvoiceList" resultType="com.grocery.on.wheels.model.InvoiceReport">
+	<![CDATA[
+	SELECT invoice_id as invoiceId, group_concat(distinct van_id) as inventoryVanId
+		,sum(item_mrp * quantity) as totalMrp
+		,sum(cp * quantity) as totalCp
+        ,sum(sp * quantity) as totalSp
+         ,sum(quantity) as totalQuantity
+        ,sum(purchase_pending) as totalPurchasePending
+        , sum(sale_pending) as totalSsalePending
+        , group_concat(distinct customer_id) as supplierCustId
+        , group_concat(distinct transaction_type) as transactionType
+        ,group_concat(distinct transaction_status) as transactionStatus
+        ,group_concat(distinct transaction_date) as transactionDate
+        ,group_concat(distinct trans_mode) as transactionMode
+		,group_concat(distinct trans_req) as transactor
+		 FROM van_transaction
+		where van_id = #{vanId} 
+        and transaction_date > #{fromDate} and transaction_date < #{toDate}
+        group by invoice_id
+		order by transactionDate desc
+	]]>
+	</select>
+	
+	<select id="getInventoryInvoiceReport" resultType="com.grocery.on.wheels.model.ItemReport">
+	<![CDATA[
+		SELECT invoice_id as invoiceId, inventory_id as inventoryVanId, inventory_transaction.item_id as itemId,
+		 mrp as mrp, item_exp_dt as itemExpDt, supplier_id as supplierCustId, 
+		quantity as quantity, transaction_type as transactionType, transaction_status as transactionStatus,
+		 transaction_date as transactionDate, sale_pending as salePending, purchase_pending as purchasePending,
+		 item_info.item_name as itemName, cp as cp, sp as sp, item_exp_id as itemExpId, item_price_id as itemPriceId
+		 FROM inventory_transaction
+		 join item_info on (inventory_transaction.item_id = item_info.item_id)
+		where inventory_id = #{inventoryId}
+		and invoice_id = #{invoiceId}
+		]]>
+	</select>
+	
+	<select id="getVanInvoiceReport" resultType="com.grocery.on.wheels.model.ItemReport">
+	<![CDATA[
+		SELECT invoice_id as invoiceId, van_id as inventoryVanId, van_transaction.item_id as itemId,
+		 item_mrp as mrp, item_exp_date as itemExpDt, customer_id as supplierCustId, 
+		quantity as quantity, transaction_type as transactionType, transaction_status as transactionStatus,
+		 transaction_date as transactionDate, sale_pending as salePending, purchase_pending as purchasePending,
+		trans_mode as transactionMode,
+		 item_info.item_name as itemName, cp as cp, sp as sp, item_exp_id as itemExpId, item_price_id as itemPriceId,
+		 van_transaction.trans_req as transactor
+		 FROM van_transaction
+		 join item_info on (van_transaction.item_id = item_info.item_id)
+		where van_id = #{vanId}
+		and invoice_id = #{invoiceId}
+		]]>
+	</select>
+	
+	
+	
+</mapper>
+
